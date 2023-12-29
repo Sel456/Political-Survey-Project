@@ -1,0 +1,357 @@
+---
+title: "R Notebook"
+output:
+  html_document:
+    df_print: paged
+---
+
+This is an [R Markdown](http://rmarkdown.rstudio.com) Notebook. When you execute code within the notebook, the results appear beneath the code. 
+
+Try executing this chunk by clicking the *Run* button within the chunk or by placing your cursor inside it and pressing *Ctrl+Shift+Enter*. 
+
+```{r}
+plot(cars)
+```
+
+
+```{r}
+#packages
+
+library(dplyr)
+library(ggplot2)
+library(modelsummary)
+library(vcd)
+#install.packages("moments")
+library(moments)
+#install.packages("pivottabler")
+#library(pivottabler)
+#install.packages("e1071")
+#library(e1071)
+#install.packages("gridExtra")
+library(kableExtra)
+library(magick)
+#library(htmltools)
+#library(reactable)
+library(gridExtra)
+
+```
+
+
+```{r}
+# importing table and data
+EDA <- read.csv("Understanding Voter Knowledge and Partisan Lean Across Majors at UNC_December 4, 2023_18.56.csv")
+EDA
+```
+
+
+```{r}
+# Data manipulation and eliminating unneccessary rows and columns
+len = nrow(EDA)
+len
+EDA <- EDA[c(1, 3:len), c(5:7, 9, 21:39)]
+names(EDA) <- EDA[1, ]
+EDA <- EDA[-c(1),]
+# colnames to change "How confident ..." questions
+colnames(EDA)[18] = "Cq_1" # for confident question 1
+colnames(EDA)[20] = "Cq_2" 
+colnames(EDA)[22] = "Cq_3"
+
+# changing colnames so data is easier to use
+colnames(EDA)[5] = "reg_to_vote"
+colnames(EDA)[6] = "race"
+colnames(EDA)[7] = "race_other"
+colnames(EDA)[8] = "major"
+colnames(EDA)[9] = "major_other"
+colnames(EDA)[10] = "most_classes_in"
+colnames(EDA)[11] = "abortion"
+colnames(EDA)[12] = "inc_soc_welfare"
+colnames(EDA)[13] = "as_rifles_ban"
+colnames(EDA)[14] = "is_voter_id_required"
+colnames(EDA)[15] = "early_voting_in_nc"
+colnames(EDA)[16] = "current_nc_senators"
+colnames(EDA)[17] = "is_nc_open_primary"
+colnames(EDA)[19] = "same_day_reg_elect_day"
+colnames(EDA)[21] = "same_day_reg_early_vote"
+colnames(EDA)[23] = "polid"
+EDA
+```
+
+
+```{r}
+
+
+#Recoding
+poilidvsinc_welfare <- na.omit(EDA[, c(12,13,23)])
+poilidvsinc_welfare$inc_soc_welfare <- recode(poilidvsinc_welfare$inc_soc_welfare, "Yes" = 1, "No" = 0)
+poilidvsinc_welfare$as_rifles_ban <- recode(poilidvsinc_welfare$as_rifles_ban, "Yes" = 1, "No" = 0)
+poilidvsinc_welfare$polid <- recode(poilidvsinc_welfare$polid, "Republican" = 1, "Independent" = 0, "Democrat" = 2)
+
+# chi test 1
+tab_3 <- table(poilidvsinc_welfare$inc_soc_welfare, poilidvsinc_welfare$polid) 
+chisq.test(tab_3)
+
+# chi test 2
+tab_4 <- table(poilidvsinc_welfare$as_rifles_ban, poilidvsinc_welfare$polid) 
+chisq.test(tab_4)
+
+# Looking at the data for the questions grouped by political party
+poilidvsinc_welfare %>% group_by(polid, inc_soc_welfare) %>% summarize(count = n())
+poilidvsinc_welfare %>% group_by(polid, as_rifles_ban) %>% summarize(count = n())
+
+# running cramers v on a statistically significant p values tables
+assocstats(tab_3)
+assocstats(tab_4)
+#(scrap for now)
+```
+
+
+```{r}
+#single variable statisics: Knowledge senator question, polid
+
+# knowledge
+#datasummary(Heading("current_nc_senatorsd")*current_nc_senators ~ (Mean + SD + Median + skewness), data = correct)
+#datasummary(Heading("political ID")*polid ~ (Mean + SD + Median), data = poilidvsinc_welfare)
+```
+
+
+```{r}
+#(nonsesne coding cell)
+correct <- EDA[, c(6, 8, 14:23)]
+
+
+#recode values for correctness
+
+correct$is_voter_id_required <- recode(correct$is_voter_id_required, "Yes" = 1, "No" = 0)
+correct$early_voting_in_nc <- recode(correct$early_voting_in_nc, "Yes" = 1, "No" = 0)
+correct$current_nc_senators <- recode(correct$current_nc_senators, "Thom Tillis & Ted Budd" = 1, "Roy Cooper & Mark Robinson" = 0) 
+correct$is_nc_open_primary <- recode(correct$is_nc_open_primary, "Yes" = 1, "No" = 0, "I don't know" = 0)
+correct$same_day_reg_elect_day <- recode(correct$same_day_reg_elect_day, "Yes" = 0, "No" = 1)
+correct$same_day_reg_early_vote <- recode(correct$same_day_reg_early_vote, "Yes" = 1, "No" = 0)
+
+
+
+correct <- na.omit(correct)
+corrt <- na.omit(correct)
+corrt$polid <- recode(corrt$polid, "Republican" = 1, "Independent" = 0, "Democrat" = 2)
+tab_corr <- table(corrt$polid, corrt$current_nc_senators)
+
+
+#chisq.test(tab_corr)
+#assocstats(tab_corr)
+
+#datasummary(Heading("current_nc_senatorsd")*current_nc_senators ~ polid*(Mean + SD + Median + Var), data = correct)
+
+#ggplot(racevsabor, aes(x = as.factor(abortion), fill=race)) +
+  #geom_bar() + theme_bw()
+
+```
+
+
+
+```{r}
+#Hypothesis 1
+# here we test to see if there is a significant association between the variables Abortion(nominal,DV) and race(nominal,IV)
+#null: There is no statistically significant association between race and abortion
+#alt: There is a statistically significant association between race and abortion
+
+
+
+racevsabor <- na.omit(EDA[, c(6,11)])
+
+getmode <- function(v) {
+  uniqv <- unique(v)
+  uniqv[which.max(tabulate(match(v, uniqv)))]
+}
+
+tab <- table(racevsabor$race, racevsabor$abortion) 
+
+chisq.test(tab)
+
+assocstats(tab)
+
+# we can see that our p value for our chis sq test is 1.194e-07. This below our p value threshold of .05 thus we can know that the association between race and abortion option is not by random chance by by some significant other factor. Our cramer v value is .533. this indicative of a relatively strong association. Thus we reject the null hypothesis in favor of the alternate.
+
+
+racevsabor$abortion <- recode(racevsabor$abortion, "1. By law, abortion should never be permitted" = 1, "2. The law should permit abortion only in case of rape, incest, or when the woman’s life is in danger" = 2, "3. The law should permit abortion other than for rape/incest/danger to woman but only after need clearly established" = 3, "4. By law, a woman should always be able to obtain an abortion as a matter of personal choice" = 4,"5. Other {SPECIFY}" = 5)
+
+racevsabor <- na.omit(racevsabor)
+skewness(racevsabor$abortion)
+
+mute = datasummary(Heading("abortion")*abortion ~ race*(getmode + skewness), data = racevsabor)
+
+write.csv(mute, file = "mute.csv")
+
+
+racevsabor_bl <- filter(racevsabor, "White" == race)
+ggplot(racevsabor, aes(x = as.factor(abortion), fill=race)) +
+  geom_bar() + theme_bw() + labs(x="Abortion Choice", y="Frequency")
+#ggsave("abortion_selection_by_race.png", last_plot(), device = "png")
+#racevsabor %>% group_by(polid) %>% summarize(count = n())
+```
+
+
+```{r}
+
+# building getmode
+Mode <- function(v) {
+  uniqv <- unique(v)
+  uniqv[which.max(tabulate(match(v, uniqv)))]
+}
+# stats for abortion and race
+h1_table_1 <- datasummary(Heading("Race")*race ~ abortion*(Mode + skewness), data = racevsabor)
+h1_table_2 <- datasummary(Heading("Abortion")*abortion ~ (Mode + skewness), data = racevsabor)
+#datasummary(Heading("race")*race ~ (Mean + SD + Median + skewness), data = racevsabor)# 
+
+h1_table_1
+h1_table_2
+
+
+```
+
+
+```{r}
+#Hypothesis 2
+# We want to know which academic fields have the most political knowledge. Stem or non-stem fields.
+#Null: there is no association or statistically significant difference between distributions for the variables fileds and political knowldge 
+#ALT:there exist some association or statistically significant difference between distributions for the variables fileds and political knowldge 
+#fields(ordinal,DV) while polknow(Interval, IV)
+
+# we first start by creating polknow, a variable detailing the political knowledge built from the knowledge questions in our data 
+
+EDA_recode_corrt <- EDA
+
+EDA_recode_corrt$is_voter_id_required <- recode(EDA_recode_corrt$is_voter_id_required, "Yes" = 1, "No" = 0, )
+EDA_recode_corrt$early_voting_in_nc <- recode(EDA_recode_corrt$early_voting_in_nc, "Yes" = 1, "No" = 0)
+EDA_recode_corrt$current_nc_senators <- recode(EDA_recode_corrt$current_nc_senators, "Thom Tillis & Ted Budd" = 1, "Roy Cooper & Mark Robinson" = 0) 
+EDA_recode_corrt$is_nc_open_primary <- recode(EDA_recode_corrt$is_nc_open_primary, "Yes" = 1, "No" = 0, "I don't know" = 0)
+EDA_recode_corrt$same_day_reg_elect_day <- recode(EDA_recode_corrt$same_day_reg_elect_day, "Yes" = 0, "No" = 1)
+EDA_recode_corrt$same_day_reg_early_vote <-recode(EDA_recode_corrt$same_day_reg_early_vote, "Yes" = 1, "No" = 0)
+# for NA values if they skipped the question then I will assume they did not know the answer
+EDA_recode_corrt[is.na(EDA_recode_corrt)] = 0
+
+EDA_recode_corrt$polknow <- EDA_recode_corrt$same_day_reg_early_vote + EDA_recode_corrt$same_day_reg_elect_day + EDA_recode_corrt$is_nc_open_primary + EDA_recode_corrt$current_nc_senators + EDA_recode_corrt$early_voting_in_nc + EDA_recode_corrt$is_voter_id_required
+
+EDA_recode_corrt$polknow_percent <- (EDA_recode_corrt$polknow)/6
+EDA_recode_corrt
+
+
+# now were gonna look at the polknow by stem and nonstem fields to compare who has most knowldge
+
+EDA_recode_corrt %>% group_by(major) %>% summarize(count = n())
+
+
+EDA_field = array()
+
+EDA_field <- recode(EDA_recode_corrt$major, "Journalism,Other" = "nonstem", "Journalism,Politcal Science/Public Policy" = "nonstem", "Politcal Science/Public Policy" = "nonstem", "Politcal Science/Public Policy,Finance/Econ" = "nonstem", "Business"="stem","Business,Computer Science"="stem","Business,Finance/Econ,Other"="stem","Computer Science,Mathematics/Physics"="stem","Finance/Econ"="stem","Mathematics/Physics"="stem","Mathematics/Physics,Other"="stem","Pre-med/Sciences"="stem","Pre-med/Sciences,Other"="stem")
+
+EDA_recode_corrt$field <- EDA_field
+EDA_recode_corrt <- na.omit(EDA_recode_corrt)
+
+#replacing blanks with skipped
+EDA_recode_corrt$field[EDA_recode_corrt$field==""]<-"Skip"
+
+
+```
+
+
+```{r}
+#ANOVA on knowledge and field
+w <- filter(EDA_recode_corrt, EDA_recode_corrt$field != "Skip")
+
+# Convert education to as.factor
+w$field<- as.factor(w$field)
+
+# Acquire the mean by group
+w %>% 
+  group_by(field) %>% 
+  summarize(avg = mean(polknow, na.rm = T))
+
+# Perform an ANOVA:
+mod_w <- aov(polknow ~ field, data = w)
+summary(mod_w)
+
+# Let's perform a Tukey test to see which group means are significantly different
+TukeyHSD(mod_w)
+# from our anove test we can see we have a pvalue of .0486. This shows that we have atleast one group in our variables that differ from the others in a statistically significant way at the .95 confidence level.
+```
+
+
+```{r}
+#measures for knowledge and field 
+EDA_recode_corrt_1 <- filter(EDA_recode_corrt, field != "Skip")
+datasummary(Heading("polknow")*polknow ~ field*(mean + skewness), data = EDA_recode_corrt_1)
+datasummary(Heading("knowledge")*polknow ~(mean + skewness), data = EDA_recode_corrt_1)
+
+#boxplot
+boxey <- ggplot(EDA_recode_corrt_1, aes(x = as.factor(field), y = polknow)) +
+  geom_boxplot() + theme_bw() + labs(x = "Field", y = "Political Knowledge")
+ggsave("box_plot.png", last_plot(), device = "png")
+
+
+# density curves
+x <- rnorm(100000, 3, 1)
+y <- rnorm(100000, 3, 2)
+z <- rnorm(100000, 3, 2)
+
+# Now we just bind the values into one dataframe using cbind()
+norm <- as.data.frame(cbind(x,y,z))
+
+dense <- ggplot(EDA_recode_corrt_1) + 
+  geom_density(aes(x = polknow), fill = "blue", alpha = 0.3) + geom_density(data = norm, aes(x = y), fill = "green", alpha = 0.3)+labs(x="Political Knowledge") # so skewness for the total really is 0 which is kinda cool. It means that out distribution here has no major skew and so is somewhat identical to the normal curve as presented below.
+boxey
+dense
+ggsave("political_knowledge_distribution.png", last_plot(), device = "png")
+
+```
+
+
+```{r}
+# hypothesis 3
+# party Id and field affiliation
+EDA_recode_corrt %>% group_by(polid, field) %>% summarize(count = n())
+EDA_recode_corrt %>% group_by(polid) %>% summarize(count = n())
+#datasummary(Heading("polid")*polid ~ field*(mean), data = EDA_recode_corrt)
+
+#The hypothesis we test here is if Political Identification and field have any association such as do some fields identify with some political parties is a statistically significant way.
+#Null Hypothesis:  Political Identification and field have no associaton
+#Alt: Political Identification and field have some existing associaton that is statistically significant
+
+# we run a chi sq test to test our hypothesis because our variables are political ID(nominal) and field(nominal)
+# for skipped values in our field we will remove them 
+EDA_idvsf <- filter(EDA_recode_corrt, field !="Skip")
+
+tab.idvsf <- table(EDA_idvsf$polid, EDA_idvsf$field) 
+#null: there is no association between race and abortion
+#alt: there is an association between race and abor
+# definetly statistically signifucant. so ther is association between race and abortion ideas
+chisq.test(tab.idvsf)
+assocstats(tab.idvsf)
+
+# as shown by our Chi sq p value statistic which is .7789,  our results are not statistically significant.This means the distribution between the two variables is most likely due to random chance and not some significant reason, such as certain type of field being associated with a certain type of Political Identification. Further, after running our cramers V we see that we get a value of .215 showing we have a moderate more close to weak association between our variables. So we fail to reject our null hypothesis that there is no statistically significant association between our two variables.
+```
+
+
+```{r}
+# measures for political ID and Field
+
+#field
+EDA_idvsf$field <- recode(EDA_idvsf$field, "stem" = 1, "nonstem" = 0)
+EDA_idvsf_1 <- EDA_idvsf[!is.na(EDA_idvsf$field),]
+datasummary(Heading("field")*field ~ (mean + Mode + skewness), data = EDA_idvsf_1)
+
+#polid by field
+EDA_idvsf_12 <- EDA_idvsf_1 %>% filter(polid != "")
+datasummary(Heading("Polid")*polid ~ field*(Mean + Mode + skewness), data = EDA_idvsf_12)
+
+
+#graphics
+ggplot(EDA_idvsf_12, aes(x = as.factor(field), fill=polid)) +
+  geom_bar() + theme_bw() + labs(x = "Field", y = "Frequency")
+
+ggsave("field_by_party.png", last_plot(), device = "png")
+```
+
+
+```{r}
+```
+
